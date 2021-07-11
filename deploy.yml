@@ -1,0 +1,70 @@
+---
+- hosts: source
+  tasks:
+  - name: pull git repo
+    git:
+      repo: 'https://github.com/sunil4356/sample.git'
+      dest: /home/oche/challange/
+      update: yes
+      version: master
+  - name: install java
+    apt: name=openjdk-11-jdk update_cache=yes
+  - name: ensure the jenkins apt repository key is installed
+    apt_key: url=https://pkg.jenkins.io/debian-stable/jenkins.io.key state=present
+    become: yes
+  - name: ensure the repository is configured
+    apt_repository: repo='deb https://pkg.jenkins.io/debian-stable binary/' state=present
+    become: yes
+
+  - name: ensure jenkins is installed
+    apt: name=jenkins update_cache=yes
+    become: yes
+
+  - name: ensure jenkins is running
+    service: name=jenkins state=started
+
+
+- hosts: client
+  tasks:
+  - name: Install Nginx
+    apt:
+      name: nginx
+      state: present
+  - name: Install git
+    apt:
+      name: git
+      state: present
+  - name: start nginx
+    service:
+      name: nginx
+      state: started
+      enabled: yes
+  - name: Copy index.html file to client server
+    copy:
+    #remote_src: True
+      src: /home/oche/challange/index.html
+      dest: /var/www/html/
+  - name: Install Postgres SQL
+    apt: name={{ item }} update_cache=true state=present
+    with_items:
+    - postgresql
+    - postgresql-contrib
+    - libpq-dev
+    - python3-psycopg2
+  - name: Ensure the PostgreSQL service is running
+    service:
+      name: postgresql
+      state: started
+      enabled: yes
+
+- hosts: all
+  tasks:
+  - name: Ensure that free space on the tested volume is greater than 15%
+    assert:
+      that:
+        - mount.size_available > mount.size_total|float * 0.15
+      msg: Disk space has reached 85% threshold
+    vars:
+      mount: "{{ ansible_mounts | selectattr('mount','equalto',item.mount) | list | first }}"
+    with_items:
+      - "{{ ansible_mounts }}"
